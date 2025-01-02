@@ -20,7 +20,7 @@ function App() {
             className="w-full h-full object-cover"
           >
             <source 
-              src="./src/vids/bgvid.mp4" 
+              src="/vids/bgvid.mp4" 
               type="video/mp4" 
             />
           </video>
