@@ -1,45 +1,52 @@
-import React, { useState } from 'react';
-import { toast } from 'sonner';
-import { Lock, Mail } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { Link } from 'react-router-dom';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { Lock, Mail } from "lucide-react";
+import { supabase } from "../lib/supabase";
 
-type AuthMode = 'login' | 'register';
+type AuthMode = "login" | "register";
 
 export function AuthForm() {
-  const [mode, setMode] = useState<AuthMode>('login');
+  const [mode, setMode] = useState<AuthMode>("login");
   const [loading, setLoading] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [email, setEmail] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
 
     try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
+      if (mode === "login") {
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (error) {
-          if (error.message === 'Email not confirmed') {
-            toast.error('Please check your email and confirm your account before logging in');
+          if (error.message === "Email not confirmed") {
+            toast.error(
+              "Please check your email and confirm your account before logging in"
+            );
           } else {
             toast.error(error.message);
           }
           return;
         }
 
-        toast.success('Logged in successfully');
-        setEmail(email); // Store email to send OTP
-        setIsOtpSent(true); // Show OTP form after successful login
+        // Get the JWT token from the session object
+        const accessToken = data?.session?.access_token;
+
+        if (accessToken) {
+          // Redirect to Streamlit app with the token as a query parameter
+          window.location.href = `http://localhost:8501?token=${accessToken}`;
+          toast.success("Logged in successfully!");
+        } else {
+          toast.error("Failed to retrieve access token.");
+        }
       } else {
         const { error, data } = await supabase.auth.signUp({
           email,
@@ -52,39 +59,16 @@ export function AuthForm() {
         }
 
         if (data?.user?.identities?.length === 0) {
-          toast.success('Registration successful! Please check your email to confirm your account.');
+          toast.success(
+            "Registration successful! Please check your email to confirm your account."
+          );
         } else {
-          toast.success('Registration successful! You can now log in.');
-          setMode('login');
+          toast.success("Registration successful! You can now log in.");
+          setMode("login");
         }
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: otp,
-        type: 'email'
-      });
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success('OTP verified successfully');
-      window.location.href = 'https://luziv-ocrx.streamlit.app/';
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'An error occurred during OTP verification');
+      toast.error(error instanceof Error ? error.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -94,17 +78,17 @@ export function AuthForm() {
     <div className="w-full max-w-md space-y-8 p-8 bg-white/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/20">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
-          {mode === 'login' ? 'Welcome back' : 'Create an account'}
+          {mode === "login" ? "Welcome back" : "Create an account"}
         </h2>
         <p className="mt-2 text-gray-600">
-          {mode === 'login'
+          {mode === "login"
             ? "Don't have an account? "
-            : 'Already have an account? '}
+            : "Already have an account? "}
           <button
-            onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+            onClick={() => setMode(mode === "login" ? "register" : "login")}
             className="text-blue-600 hover:text-blue-500 font-medium"
           >
-            {mode === 'login' ? 'Sign up' : 'Log in'}
+            {mode === "login" ? "Sign up" : "Log in"}
           </button>
         </p>
       </div>
@@ -151,7 +135,7 @@ export function AuthForm() {
           </div>
         </div>
 
-        {mode === 'login' && (
+        {mode === "login" && (
           <div className="text-right">
             <Link
               to="/forgot-password"
@@ -167,35 +151,13 @@ export function AuthForm() {
           disabled={loading}
           className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Please wait...' : mode === 'login' ? 'Sign in' : 'Sign up'}
+          {loading
+            ? "Please wait..."
+            : mode === "login"
+            ? "Sign in"
+            : "Sign up"}
         </button>
       </form>
-
-      {isOtpSent && (
-        <form onSubmit={handleOtpSubmit} className="mt-8 space-y-6">
-          <div>
-            <label htmlFor="otp" className="sr-only">OTP</label>
-            <input
-              id="otp"
-              name="otp"
-              type="text"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              required
-              className="block w-full py-2 px-3 border border-gray-300 rounded-md"
-              placeholder="Enter OTP"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Please wait...' : 'Verify OTP'}
-          </button>
-        </form>
-      )}
     </div>
   );
 }
