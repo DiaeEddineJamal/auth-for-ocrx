@@ -82,7 +82,7 @@ export function AuthForm() {
       }
 
       toast.success('OTP verified successfully');
-      window.location.href = 'https://luziv-ocr.streamlit.app/';
+      window.location.href = 'https://luziv-ocrx.streamlit.app/';
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'An error occurred during OTP verification');
     } finally {
