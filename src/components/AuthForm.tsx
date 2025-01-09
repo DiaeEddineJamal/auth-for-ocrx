@@ -39,6 +39,17 @@ export function AuthForm() {
 
         toast.success('Logged in successfully');
         setEmail(email); // Store email to send OTP
+
+        // Send OTP
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email,
+        });
+
+        if (otpError) {
+          toast.error(otpError.message);
+          return;
+        }
+
         setIsOtpSent(true); // Show OTP form after successful login
       } else {
         const { error, data } = await supabase.auth.signUp({
