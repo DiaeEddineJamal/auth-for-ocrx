@@ -15,11 +15,8 @@ export function ForgotPassword() {
     const email = formData.get('email') as string;
 
     try {
-      // Use the environment variable for the site URL
-      const siteUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${siteUrl}/reset-password`,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) {
