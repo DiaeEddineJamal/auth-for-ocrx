@@ -8,3 +8,6 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
+export const APP_URL = import.meta.env.PROD
+    ? 'https://auth-for-ocrx.vercel.app/'  // Replace with your actual Vercel domain
+    : 'http://localhost:5173';

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '../lib/supabase';
+
+import { supabase, APP_URL } from '../lib/supabase';
 
 export function ForgotPassword() {
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ export function ForgotPassword() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${APP_URL}/reset-password`,
       });
 
       if (error) {
