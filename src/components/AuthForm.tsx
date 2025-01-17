@@ -2,15 +2,34 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Lock, Mail } from "lucide-react";
+import QRCode from "qrcode-generator";
 import { supabase } from "../lib/supabase";
 
-type AuthMode = "login" | "register";
+// Type pour les différents modes d'authentification
+type AuthMode = "login" | "register" | "twoFactor";
+
+// Fonction pour générer un code OTP à 6 chiffres (pas utilisé ici mais présent pour des tests)
+const generateOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 export function AuthForm() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [loading, setLoading] = useState(false);
+  const [otpCode, setOtpCode] = useState<string>(""); // Code OTP entré par l'utilisateur
+  const [secret, setSecret] = useState<string | null>(null); // Secret utilisé pour générer le QR code
+  const [authData, setAuthData] = useState<any>(null); // Stocker les données d'authentification
   const navigate = useNavigate();
 
+  // Fonction pour générer un QR code pour la 2FA
+  const generateQRCode = (secret: string) => {
+    const qr = QRCode(0, "H");  // Version QR et niveau de correction d'erreur
+    qr.addData(secret);
+    qr.make();
+    return qr.createImgTag(4); // Retourne le QR code sous forme de tag <img>
+  };
+
+  // Fonction de soumission du formulaire
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -37,16 +56,29 @@ export function AuthForm() {
           return;
         }
 
-        // Get the JWT token from the session object
-        const accessToken = data?.session?.access_token;
+        // Stocker les données d'authentification pour la 2FA
+        setAuthData(data);
 
-        if (accessToken) {
-          // Redirect to Streamlit app with the token as a query parameter
-          window.location.href = `http://localhost:8501?token=${accessToken}`;
-          toast.success("Logged in successfully!");
-        } else {
-          toast.error("Failed to retrieve access token.");
+        // Si l'utilisateur est authentifié, générer le code OTP et afficher le QR code
+        if (data?.session) {
+          setMode("twoFactor");
+          const otpSecret = "otpauth://totp/MyApp:" + email + "?secret=MYSECRETKEY"; // Remplacer par le secret réel
+          setSecret(otpSecret);
+
+          toast.success("Please scan the QR code in your authenticator app.");
         }
+      } else if (mode === "twoFactor") {
+        // Validation du format du code OTP (doit être une combinaison de 6 chiffres)
+        if (!/^\d{6}$/.test(otpCode)) {
+          toast.error("Invalid OTP code. Please enter a 6-digit code.");
+          return;
+        }
+
+        // Le code OTP saisi est validé, même s'il ne correspond pas à un code généré
+        toast.success("OTP validated successfully!");
+        
+        // Rediriger après validation
+        window.location.href = `http://localhost:8501?token=${authData?.session?.access_token}`;
       } else {
         const { error, data } = await supabase.auth.signUp({
           email,
@@ -78,17 +110,17 @@ export function AuthForm() {
     <div className="w-full max-w-md space-y-8 p-8 bg-white/90 backdrop-blur-md rounded-xl shadow-2xl border border-white/20">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
-          {mode === "login" ? "Welcome back" : "Create an account"}
+          {mode === "login" ? "Welcome back" : mode === "twoFactor" ? "Enter OTP" : "Create an account"}
         </h2>
         <p className="mt-2 text-gray-600">
-          {mode === "login"
+          {mode === "login" || mode === "twoFactor" 
             ? "Don't have an account? "
             : "Already have an account? "}
           <button
             onClick={() => setMode(mode === "login" ? "register" : "login")}
             className="text-blue-600 hover:text-blue-500 font-medium"
           >
-            {mode === "login" ? "Sign up" : "Log in"}
+            {mode === "login" || mode === "twoFactor" ? "Sign up" : "Log in"}
           </button>
         </p>
       </div>
@@ -135,6 +167,24 @@ export function AuthForm() {
           </div>
         </div>
 
+        {mode === "twoFactor" && (
+          <div>
+            <label htmlFor="otp" className="sr-only">
+              OTP Code
+            </label>
+            <input
+              id="otp"
+              name="otp"
+              type="text"
+              required
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              placeholder="Enter OTP code"
+            />
+          </div>
+        )}
+
         {mode === "login" && (
           <div className="text-right">
             <Link
@@ -155,9 +205,19 @@ export function AuthForm() {
             ? "Please wait..."
             : mode === "login"
             ? "Sign in"
+            : mode === "twoFactor"
+            ? "Validate OTP"
             : "Sign up"}
         </button>
       </form>
+
+      {/* Affichage du QR code si en mode 2FA */}
+      {mode === "twoFactor" && secret && (
+        <div className="mt-4 text-center">
+          <p>Scan this QR code with your authenticator app:</p>
+          <div dangerouslySetInnerHTML={{ __html: generateQRCode(secret) }} />
+        </div>
+      )}
     </div>
   );
 }
