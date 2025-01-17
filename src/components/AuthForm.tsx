@@ -3,12 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Lock, Mail } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { authenticator } from "otplib";
+import { QRCode } from "qrcode.react";
+
 
 type AuthMode = "login" | "register";
 
 export function AuthForm() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [loading, setLoading] = useState(false);
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [twoFactorSecret, setTwoFactorSecret] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -27,28 +33,40 @@ export function AuthForm() {
         });
 
         if (error) {
-          if (error.message === "Email not confirmed") {
-            toast.error(
-              "Please check your email and confirm your account before logging in"
-            );
-          } else {
-            toast.error(error.message);
-          }
+          toast.error(error.message);
           return;
         }
 
-        // Get the JWT token from the session object
-        const accessToken = data?.session?.access_token;
-
-        if (accessToken) {
-          // Redirect to Streamlit app with the token as a query parameter
-          window.location.href = `http://localhost:8501?token=${accessToken}`;
-          toast.success("Logged in successfully!");
-        } else {
-          toast.error("Failed to retrieve access token.");
+        // Obtenez les données utilisateur après la connexion
+        const { data: userResponse, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          toast.error("Failed to fetch user data.");
+          return;
         }
+
+        const userId = userResponse?.user?.id;
+
+        const { data: userMetadata, error: metadataError } = await supabase
+          .from("users")
+          .select("two_factor_enabled, two_factor_secret")
+          .eq("id", userId)
+          .single();
+
+        if (metadataError) {
+          toast.error("Failed to fetch user metadata.");
+          return;
+        }
+
+        if (userMetadata?.two_factor_enabled) {
+          setRequires2FA(true);
+          setTwoFactorSecret(userMetadata.two_factor_secret);
+          return;
+        }
+
+        toast.success("Logged in successfully!");
+        navigate("/dashboard");
       } else {
-        const { error, data } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
@@ -58,19 +76,23 @@ export function AuthForm() {
           return;
         }
 
-        if (data?.user?.identities?.length === 0) {
-          toast.success(
-            "Registration successful! Please check your email to confirm your account."
-          );
-        } else {
-          toast.success("Registration successful! You can now log in.");
-          setMode("login");
-        }
+        toast.success("Registration successful! Check your email.");
+        setMode("login");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "An error occurred");
+      toast.error("An error occurred during authentication.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handle2FACodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (twoFactorSecret && authenticator.check(twoFactorCode, twoFactorSecret)) {
+      toast.success("2FA validated successfully!");
+      navigate("/dashboard");
+    } else {
+      toast.error("Invalid 2FA code.");
     }
   };
 
@@ -158,6 +180,36 @@ export function AuthForm() {
             : "Sign up"}
         </button>
       </form>
+
+      {requires2FA && twoFactorSecret && (
+        <form onSubmit={handle2FACodeSubmit} className="mt-8 space-y-6">
+          <div className="text-center">
+            <QRCode value={twoFactorSecret} />
+            <p className="mt-4">Scan the QR code in your 2FA app</p>
+          </div>
+          <div>
+            <label htmlFor="twoFactorCode" className="sr-only">
+              Enter 2FA code
+            </label>
+            <input
+              id="twoFactorCode"
+              name="twoFactorCode"
+              type="text"
+              value={twoFactorCode}
+              onChange={(e) => setTwoFactorCode(e.target.value)}
+              required
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              placeholder="Enter 2FA code"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            Validate 2FA
+          </button>
+        </form>
+      )}
     </div>
   );
 }
