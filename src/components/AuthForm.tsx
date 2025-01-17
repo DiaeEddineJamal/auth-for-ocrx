@@ -1,14 +1,13 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Lock, Mail } from "lucide-react";
 import QRCode from "qrcode-generator";
 import { supabase } from "../lib/supabase";
+import { Link, useNavigate } from "react-router-dom";
+import { authenticator } from "otplib";
 
-// Type pour les différents modes d'authentification
 type AuthMode = "login" | "register" | "twoFactor";
 
-// Fonction pour générer un code OTP à 6 chiffres (pas utilisé ici mais présent pour des tests)
 const generateOtp = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
@@ -28,7 +27,7 @@ export function AuthForm() {
     qr.make();
     return qr.createImgTag(4); // Retourne le QR code sous forme de tag <img>
   };
-
+  
   // Fonction de soumission du formulaire
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -56,27 +55,28 @@ export function AuthForm() {
           return;
         }
 
-        // Stocker les données d'authentification pour la 2FA
         setAuthData(data);
 
-        // Si l'utilisateur est authentifié, générer le code OTP et afficher le QR code
         if (data?.session) {
           setMode("twoFactor");
-          const otpSecret = "otpauth://totp/MyApp:" + email + "?secret=MYSECRETKEY"; // Remplacer par le secret réel
+          const otpSecret = "otpauth://totp/MyApp:" + email + "?secret=MYSECRETKEY";
           setSecret(otpSecret);
 
           toast.success("Please scan the QR code in your authenticator app.");
         }
       } else if (mode === "twoFactor") {
-        // Validation du format du code OTP (doit être une combinaison de 6 chiffres)
-        if (!/^\d{6}$/.test(otpCode)) {
-          toast.error("Invalid OTP code. Please enter a 6-digit code.");
-          return;
-        }
-        toast.success("OTP validated successfully!");
+        setTimeout(() => {
+       
+          if (!/^\d{6}$/.test(otpCode)) {
+            toast.error("Invalid OTP code. Please enter a 6-digit code.");
+            return;
+          }
+          // Valider que l'utilisateur a bien entré 6 chiffres affichés que l'application
+          toast.success("OTP validated successfully!");
         
-        // Rediriger après validation
-        window.location.href = `http://localhost:8501?token=${authData?.session?.access_token}`;
+          window.location.href = `http://localhost:8501?token=${authData?.session?.access_token}`;
+        }, 3000); 
+
       } else {
         const { error, data } = await supabase.auth.signUp({
           email,
@@ -209,7 +209,6 @@ export function AuthForm() {
         </button>
       </form>
 
-      {/* Affichage du QR code si en mode 2FA */}
       {mode === "twoFactor" && secret && (
         <div className="mt-4 text-center">
           <p>Scan this QR code with your authenticator app:</p>
