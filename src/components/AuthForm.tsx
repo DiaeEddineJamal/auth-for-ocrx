@@ -73,8 +73,6 @@ export function AuthForm() {
           toast.error("Invalid OTP code. Please enter a 6-digit code.");
           return;
         }
-
-        // Le code OTP saisi est validé, même s'il ne correspond pas à un code généré
         toast.success("OTP validated successfully!");
         
         // Rediriger après validation
