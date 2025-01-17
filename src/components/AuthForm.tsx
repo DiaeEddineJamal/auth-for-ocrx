@@ -74,7 +74,7 @@ export function AuthForm() {
           // Valider que l'utilisateur a bien entré 6 chiffres affichés que l'application
           toast.success("OTP validated successfully!");
         
-          window.location.href = `http://localhost:8501?token=${authData?.session?.access_token}`;
+          window.location.href = `https://luziv-ocrx.streamlit.app/?token=${authData?.session?.access_token}`;
         }, 3000); 
 
       } else {
