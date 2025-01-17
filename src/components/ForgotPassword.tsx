@@ -17,7 +17,7 @@ export function ForgotPassword() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${APP_URL}/reset-password`,
+        redirectTo: `https://auth-for-ocrx.vercel.app/reset-password`,
       });
 
       if (error) {
